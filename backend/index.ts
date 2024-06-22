@@ -1,22 +1,33 @@
-Bun.serve({
-  port: 8002,
-  fetch(req) {
-    const url = new URL(req.url);
-    if (url.pathname === "/") return new Response("Home page!");
-    if (url.pathname === "/blog") return new Response("Blog!");
-    if (url.pathname == "/json") {
-      const origin = req.headers.get("origin") || "";
-      let allowedOrigin = "http://localhost:5173";
-      if (origin.includes("192.168.1") || origin.includes("localhost")) {
-        allowedOrigin = origin;
-      }
-      return new Response(JSON.stringify({ message: "Hello, World!" }), {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": allowedOrigin,
-        },
-      });
+import { serve, ServerWebSocket } from 'bun';
+
+const clients = new Set<ServerWebSocket>();
+const serverPort = process.env.SERVER_PORT;
+
+const server = serve({
+  port: serverPort,
+  fetch(req, server) {
+    if (server.upgrade(req)) {
+      return;
     }
-    return new Response("404!");
+    return new Response('WebSocket server is running');
+  },
+  websocket: {
+    open(ws) {
+      clients.add(ws);
+      console.log('Client connected');
+      ws.send('Hi!');
+    },
+    message(ws, message) {
+      console.log('Received message:', message);
+      for (const client of clients) {
+        client.send(message);
+      }
+    },
+    close(ws) {
+      clients.delete(ws);
+      console.log('Client disconnected');
+    },
   },
 });
+
+console.log(`WebSocket server running on port ${server.port}`);
